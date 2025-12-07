@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Web File Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
     body {
       margin: 0;
@@ -15,6 +16,7 @@
       display: flex;
       flex-direction: column;
     }
+
     header {
       padding: 15px;
       background: #222;
@@ -22,11 +24,13 @@
       font-weight: 600;
       text-align: center;
     }
+
     #picker {
       padding: 15px;
       background: #181818;
       text-align: center;
     }
+
     input[type="file"] {
       padding: 10px;
       background: #00c853;
@@ -35,35 +39,45 @@
       border: none;
       font-size: 14px;
     }
+
     #fileList {
       flex: 1;
       overflow-y: auto;
       border-top: 1px solid #333;
     }
+
     .item {
       padding: 10px;
       border-bottom: 1px solid #333;
       cursor: pointer;
     }
+
     .item:hover {
       background: #252525;
     }
+
+    /* ==========================
+       Viewer Window + Zoom
+       ========================== */
+
     #viewer {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.92);
       display: none;
       flex-direction: column;
       z-index: 10;
     }
+
     #viewerContent {
       flex: 1;
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: auto;
-      padding: 20px;
+      overflow: hidden;
+      padding: 10px;
     }
+
     #closeBtn {
       background: #d50000;
       color: #fff;
@@ -74,8 +88,16 @@
       display: block;
       font-size: 16px;
     }
+
+    /* عنصر يدعم التكبير */
+    .zoomable {
+      touch-action: none;
+      transform-origin: center center;
+      transition: transform 0.15s ease-out;
+    }
   </style>
 </head>
+
 <body>
 
 <header>📄 Web File Viewer</header>
@@ -86,13 +108,19 @@
 
 <div id="fileList"></div>
 
-<!-- Viewer -->
+<!-- ==========================
+     Viewer Window
+     ========================== -->
 <div id="viewer">
   <button id="closeBtn">إغلاق</button>
   <div id="viewerContent"></div>
 </div>
 
 <script>
+/* ================================
+   عناصر DOM
+================================ */
+
 const fileInput = document.getElementById("fileInput");
 const fileList = document.getElementById("fileList");
 const viewer = document.getElementById("viewer");
@@ -101,7 +129,10 @@ const closeBtn = document.getElementById("closeBtn");
 
 let selectedFiles = [];
 
-// Show file list
+/* ================================
+   عرض قائمة الملفات
+================================ */
+
 fileInput.addEventListener("change", (e) => {
   selectedFiles = Array.from(e.target.files);
   fileList.innerHTML = "";
@@ -115,77 +146,147 @@ fileInput.addEventListener("change", (e) => {
   });
 });
 
-// View file
+/* ================================
+   الوظيفة الرئيسية: عرض ملف
+================================ */
+
 function viewFile(file) {
   viewer.style.display = "flex";
   viewerContent.innerHTML = "";
 
   const type = file.type;
 
-  // Image
+  let el;
+
+  // ===== الصور =====
   if (type.startsWith("image/")) {
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
-    img.style.maxWidth = "100%";
-    img.style.maxHeight = "100%";
-    viewerContent.appendChild(img);
+    el = document.createElement("img");
+    el.src = URL.createObjectURL(file);
+    el.style.maxWidth = "100%";
+    el.style.maxHeight = "100%";
   }
 
-  // PDF
+  // ===== PDF =====
   else if (type === "application/pdf") {
-    const iframe = document.createElement("iframe");
-    iframe.src = URL.createObjectURL(file);
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    viewerContent.appendChild(iframe);
+    el = document.createElement("iframe");
+    el.src = URL.createObjectURL(file);
+    el.style.width = "100%";
+    el.style.height = "100%";
   }
 
-  // Video
+  // ===== فيديو =====
   else if (type.startsWith("video/")) {
-    const video = document.createElement("video");
-    video.src = URL.createObjectURL(file);
-    video.controls = true;
-    video.style.maxWidth = "100%";
-    viewerContent.appendChild(video);
+    el = document.createElement("video");
+    el.src = URL.createObjectURL(file);
+    el.controls = true;
+    el.style.maxWidth = "100%";
   }
 
-  // Audio
+  // ===== صوت =====
   else if (type.startsWith("audio/")) {
-    const audio = document.createElement("audio");
-    audio.src = URL.createObjectURL(file);
-    audio.controls = true;
-    audio.style.width = "100%";
-    viewerContent.appendChild(audio);
+    el = document.createElement("audio");
+    el.src = URL.createObjectURL(file);
+    el.controls = true;
+    el.style.width = "100%";
   }
 
-  // Text-based files
-  else if (type.startsWith("text/") || file.name.endsWith(".json") || file.name.endsWith(".html") || file.name.endsWith(".js")) {
+  // ===== نصوص =====
+  else if (
+    type.startsWith("text/") ||
+    file.name.endsWith(".json") ||
+    file.name.endsWith(".html") ||
+    file.name.endsWith(".js")
+  ) {
+    el = document.createElement("pre");
     const reader = new FileReader();
-    reader.onload = () => {
-      const pre = document.createElement("pre");
-      pre.textContent = reader.result;
-      pre.style.whiteSpace = "pre-wrap";
-      pre.style.fontSize = "14px";
-      viewerContent.appendChild(pre);
-    };
+    reader.onload = () => (el.textContent = reader.result);
     reader.readAsText(file);
+    el.style.whiteSpace = "pre-wrap";
+    el.style.fontSize = "14px";
   }
 
-  // Unsupported → Download instead
+  // ===== غير مدعوم → تحميل =====
   else {
-    const msg = document.createElement("div");
-    msg.innerHTML = `
+    el = document.createElement("div");
+    el.innerHTML = `
       <p>لا يمكن عرض هذا النوع من الملفات.</p>
-      <a href="${URL.createObjectURL(file)}" download="${file.name}" style="color:#4fc3f7;">تحميل الملف</a>
+      <a href="${URL.createObjectURL(file)}" download="${file.name}" style="color:#4fc3f7;">
+        تحميل الملف
+      </a>
     `;
-    viewerContent.appendChild(msg);
   }
+
+  viewerContent.appendChild(el);
+  enablePinchZoom(el);
 }
 
-// Close viewer
+/* ================================
+   Pinch-to-Zoom + Pan
+================================ */
+
+let scale = 1;
+let lastScale = 1;
+let pinchStartDist = 0;
+
+let startX = 0;
+let startY = 0;
+let lastX = 0;
+let lastY = 0;
+
+function enablePinchZoom(el) {
+  el.classList.add("zoomable");
+
+  el.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      // حساب المسافة بين الإصبعين
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.sqrt(dx * dx + dy * dy);
+      lastScale = scale;
+    } else if (e.touches.length === 1 && scale > 1) {
+      startX = e.touches[0].clientX - lastX;
+      startY = e.touches[0].clientY - lastY;
+    }
+  });
+
+  el.addEventListener("touchmove", (e) => {
+    // تكبير
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const newDist = Math.sqrt(dx * dx + dy * dy);
+
+      scale = Math.min(4, Math.max(1, lastScale * (newDist / pinchStartDist)));
+      el.style.transform = `scale(${scale}) translate(${lastX}px, ${lastY}px)`;
+    }
+
+    // سحب أثناء التكبير
+    else if (e.touches.length === 1 && scale > 1) {
+      lastX = (e.touches[0].clientX - startX) / scale;
+      lastY = (e.touches[0].clientY - startY) / scale;
+      el.style.transform = `scale(${scale}) translate(${lastX}px, ${lastY}px)`;
+    }
+  });
+
+  // نقر مزدوج → إعادة للحجم الطبيعي
+  el.addEventListener("dblclick", () => {
+    scale = 1;
+    lastX = 0;
+    lastY = 0;
+    el.style.transform = "scale(1) translate(0, 0)";
+  });
+}
+
+/* ================================
+   إغلاق العارض
+================================ */
+
 closeBtn.onclick = () => {
   viewer.style.display = "none";
   viewerContent.innerHTML = "";
+  scale = 1;
+  lastX = 0;
+  lastY = 0;
 };
 </script>
 
